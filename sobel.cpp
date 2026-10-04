@@ -117,6 +117,37 @@ int main(int argc, char** argv){
 
     cl_kernel kernel = clCreateKernel(program, "sobel_rgb", NULL);
 
+    //  Create Image Objects
+    cl_image_format format = {CL_RGBA, CL_UNORM_INT8};
+    cl_image_desc desc = {0};
+    desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    desc.image_width = width;
+    desc.image_height = height;
 
+    cl_mem d_src = clCreateImage(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &format, &desc, host_image, NULL);
+    cl_mem d_dst = clCreateImage(context, CL_MEM_WRITE_ONLY, &format, &desc, NULL, NULL);
 
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_src);
+    clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_dst);
+
+    size_t global_work_size[2] = {(size_t)width,(size_t)height};
+    clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, NULL);
+
+    unsigned char *output_image = (unsigned char*)malloc(width*height*4);
+    size_t origin[3] = {0,0,0};
+    size_t region[3] = {width, height, 1};
+
+    clEnqueueReadImage(queue, d_dst, CL_TRUE, origin, region, 0, 0, output_image, 0, NULL, NULL);
+
+    stbi_write_png("output_edges.png", width, height, 4, output_image, width * 4);
+
+    free(host_image);
+    free(source);
+    free(output_image);
+    clReleaseMemObject(d_src);
+    clReleaseMemObject(d_dst);
+    clReleaseKernel(kernel);
+    clReleaseProgram(program);
+    clReleaseCommandQueue(queue);
+    clReleaseContext(context);
 }
